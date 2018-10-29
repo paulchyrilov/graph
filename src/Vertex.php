@@ -352,7 +352,7 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function destroy()
     {
-        foreach ($this->getEdges() as $edge) {
+        foreach ($this->edges as $edge) {
             $edge->destroy();
         }
         $this->edgesCacheObject = null;
