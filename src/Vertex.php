@@ -352,9 +352,10 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function destroy()
     {
-        foreach ($this->getEdges()->getEdgesDistinct() as $edge) {
+        foreach ($this->getEdges() as $edge) {
             $edge->destroy();
         }
+        $this->edgesCacheObject = null;
         $this->graph->removeVertex($this);
     }
 
@@ -378,11 +379,6 @@ class Vertex implements EdgesAggregate, AttributeAware
     public function setAttribute($name, $value)
     {
         $this->attributes[$name] = $value;
-    }
-
-    public function removeAttribute($name)
-    {
-        unset($this->attributes[$name]);
     }
 
     public function getAttributeBag()
