@@ -2,17 +2,16 @@
 
 namespace Fhaculty\Graph;
 
+use Fhaculty\Graph\Attribute\AttributeAware;
+use Fhaculty\Graph\Attribute\AttributeBagReference;
 use Fhaculty\Graph\Edge\Base as Edge;
 use Fhaculty\Graph\Edge\Directed as EdgeDirected;
 use Fhaculty\Graph\Edge\Undirected as EdgeUndirected;
+use Fhaculty\Graph\Exception\BadMethodCallException;
+use Fhaculty\Graph\Exception\InvalidArgumentException;
 use Fhaculty\Graph\Set\Edges;
 use Fhaculty\Graph\Set\EdgesAggregate;
 use Fhaculty\Graph\Set\Vertices;
-use Fhaculty\Graph\Exception\BadMethodCallException;
-use Fhaculty\Graph\Exception\UnexpectedValueException;
-use Fhaculty\Graph\Exception\InvalidArgumentException;
-use Fhaculty\Graph\Attribute\AttributeAware;
-use Fhaculty\Graph\Attribute\AttributeBagReference;
 
 class Vertex implements EdgesAggregate, AttributeAware
 {
@@ -24,6 +23,11 @@ class Vertex implements EdgesAggregate, AttributeAware
     private $edges = array();
 
     /**
+     * @var null|Edges
+     */
+    private $edgesCacheObject;
+
+    /**
      * @var Graph
      */
     private $graph;
@@ -31,7 +35,7 @@ class Vertex implements EdgesAggregate, AttributeAware
     /**
      * vertex balance
      *
-     * @var float|NULL
+     * @var int|float|NULL
      * @see Vertex::setBalance()
      */
     private $balance;
@@ -163,6 +167,7 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function addEdge(Edge $edge)
     {
+        $this->edgesCacheObject = null;
         $this->edges[] = $edge;
     }
 
@@ -181,6 +186,7 @@ class Vertex implements EdgesAggregate, AttributeAware
         if ($id === false) {
             throw new InvalidArgumentException('Given edge does NOT exist');
         }
+        $this->edgesCacheObject = null;
         unset($this->edges[$id]);
     }
 
@@ -219,7 +225,10 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function getEdges()
     {
-        return new Edges($this->edges);
+        if(!isset($this->edgesCacheObject)) {
+            $this->edgesCacheObject = new Edges($this->edges);
+        }
+        return $this->edgesCacheObject;
     }
 
     /**
@@ -229,11 +238,7 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function getEdgesOut()
     {
-        $that = $this;
-
-        return $this->getEdges()->getEdgesMatch(function (Edge $edge) use ($that) {
-            return $edge->hasVertexStart($that);
-        });
+        return $this->getEdges()->getEdgesFrom($this);
     }
 
     /**
@@ -243,11 +248,7 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function getEdgesIn()
     {
-        $that = $this;
-
-        return $this->getEdges()->getEdgesMatch(function (Edge $edge) use ($that) {
-            return $edge->hasVertexTarget($that);
-        });
+        return $this->getEdges()->getEdgesTo($this);
     }
 
     /**
@@ -259,11 +260,8 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function getEdgesTo(Vertex $vertex)
     {
-        $that = $this;
-
-        return $this->getEdges()->getEdgesMatch(function (Edge $edge) use ($that, $vertex) {
-            return $edge->isConnection($that, $vertex);
-        });
+        //Normally we should check something like ->getEdgesFromTo($this, $vertex) here, but all $this->edges are already connected to $this.
+        return $this->getEdges()->getEdgesTo($vertex);
     }
 
     /**
@@ -295,9 +293,17 @@ class Vertex implements EdgesAggregate, AttributeAware
         $ret = array();
         foreach ($this->edges as $edge) {
             if ($edge->hasVertexStart($this)) {
-                $ret []= $edge->getVertexToFrom($this);
+                $vertex = $edge->getVertexToFrom($this);
+                if(null === $vertex) {
+                    throw new InvalidArgumentException('Invalid start vertex');
+                }
+                $ret[] = $vertex;
             } else {
-                $ret []= $edge->getVertexFromTo($this);
+                $vertex = $edge->getVertexFromTo($this);
+                if(null === $vertex) {
+                    throw new InvalidArgumentException('Invalid end vertex');
+                }
+                $ret[] = $vertex;
             }
         }
 
@@ -354,7 +360,7 @@ class Vertex implements EdgesAggregate, AttributeAware
      */
     public function destroy()
     {
-        foreach ($this->edges as $edge) {
+        foreach ($this->getEdges()->getEdgesDistinct() as $edge) {
             $edge->destroy();
         }
         $this->graph->removeVertex($this);
@@ -380,6 +386,11 @@ class Vertex implements EdgesAggregate, AttributeAware
     public function setAttribute($name, $value)
     {
         $this->attributes[$name] = $value;
+    }
+
+    public function removeAttribute($name)
+    {
+        unset($this->attributes[$name]);
     }
 
     public function getAttributeBag()

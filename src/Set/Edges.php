@@ -3,15 +3,16 @@
 namespace Fhaculty\Graph\Set;
 
 use Fhaculty\Graph\Edge\Base as Edge;
-use Fhaculty\Graph\Exception\UnderflowException;
 use Fhaculty\Graph\Exception\InvalidArgumentException;
 use Fhaculty\Graph\Exception\OutOfBoundsException;
 use Fhaculty\Graph\Exception\UnexpectedValueException;
 use Countable;
+use Fhaculty\Graph\Vertex;
 use IteratorAggregate;
 use IteratorIterator;
 use ArrayIterator;
 use Fhaculty\Graph\Set\EdgesAggregate;
+use Fhaculty\Graph\Exception\UnderflowException;
 
 /**
  * A Set of Edges
@@ -22,7 +23,7 @@ use Fhaculty\Graph\Set\EdgesAggregate;
  * instances or to get a new Set of Edges. This way it's safe to pass around
  * the original Set of Edges, because it will never be modified.
  */
-class Edges implements Countable, IteratorAggregate, EdgesAggregate
+class Edges implements \Countable, \IteratorAggregate, EdgesAggregate
 {
     /**
      * order by edge weight
@@ -64,6 +65,16 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
     const ORDER_RANDOM = 5;
 
     protected $edges = array();
+
+    /**
+     * @var Edges
+     */
+    protected $edgesTo;
+
+    /**
+     * @var Edges
+     */
+    protected $edgesFrom;
 
     /**
      * create new Edges instance
@@ -184,7 +195,7 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
     /**
      * return first Edge that matches the given callback filter function
      *
-     * @param callback $callbackCheck
+     * @param callable $callbackCheck
      * @return Edge
      * @throws UnderflowException if no Edge matches the given callback filter function
      * @uses self::getEdgeMatchOrNull()
@@ -202,7 +213,7 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
     /**
      * checks whethere there's an Edge that matches the given callback filter function
      *
-     * @param callback $callbackCheck
+     * @param callable $callbackCheck
      * @return boolean
      * @see self::getEdgeMatch() to return the Edge instance that matches the given callback filter function
      * @uses self::getEdgeMatchOrNull()
@@ -227,6 +238,46 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
     public function getEdgesMatch($callbackCheck)
     {
         return new static(array_filter($this->edges, $callbackCheck));
+    }
+
+    /**
+     * @param Vertex $from
+     * @return mixed
+     */
+    public function getEdgesFrom(Vertex $from)
+    {
+        if(!isset($this->edgesFrom[$from->getId()])) {
+            $edges = array();
+            foreach ($this->edges as $index => $edge) {
+                /** @var Edge $edge*/
+                if(!$edge->hasVertexStart($from)) {
+                    continue;
+                }
+                $edges[] = $edge;
+            }
+            $this->edgesFrom[$from->getId()] = new static($edges);
+        }
+        return $this->edgesFrom[$from->getId()];
+    }
+
+    /**
+     * @param Vertex $to
+     * @return mixed
+     */
+    public function getEdgesTo(Vertex $to)
+    {
+        if(!isset($this->edgesTo[$to->getId()])) {
+            $edges = array();
+            foreach ($this->edges as $index => $edge) {
+                /** @var Edge $edge*/
+                if(!$edge->hasVertexTarget($to)) {
+                    continue;
+                }
+                $edges[] = $edge;
+            }
+            $this->edgesTo[$to->getId()] = new static($edges);
+        }
+        return $this->edgesTo[$to->getId()];
     }
 
     /**
@@ -413,11 +464,11 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
      * This method implements the IteratorAggregate interface and allows this
      * Set of Edges to be used in foreach loops.
      *
-     * @return IteratorIterator
+     * @return \IteratorIterator
      */
     public function getIterator()
     {
-        return new IteratorIterator(new ArrayIterator($this->edges));
+        return new \IteratorIterator(new \ArrayIterator($this->edges));
     }
 
     /**
@@ -458,7 +509,7 @@ class Edges implements Countable, IteratorAggregate, EdgesAggregate
      *
      * @param callable|int $callback
      * @throws InvalidArgumentException
-     * @return Closure
+     * @return callable
      */
     private function getCallback($callback)
     {
